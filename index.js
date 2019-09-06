@@ -13,7 +13,7 @@ const TOKEN_PATH = 'token.json';
 // id da planilha.
 // planilha de teste no meu drive: '1_doGr26mw141Ay-U5MQZSZbqH7mmHPrrxa1eiq9eZLU'
 // planilha passada pela Tunts no email: '158S3OQh-aXsG1DkWashKC-BATikjG2LFqpwsR07pXz4'
-const SPREADSHEET_ID = '1_doGr26mw141Ay-U5MQZSZbqH7mmHPrrxa1eiq9eZLU';
+const SPREADSHEET_ID = '158S3OQh-aXsG1DkWashKC-BATikjG2LFqpwsR07pXz4';
 // aba da planilha com todas as informações
 const SPREADSHEET_TAB = 'engenharia_de_software';
 // TODO constantes indentificando cada coluna da planilha
