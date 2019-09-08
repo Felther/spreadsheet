@@ -16,7 +16,14 @@ const TOKEN_PATH = 'token.json';
 const SPREADSHEET_ID = '158S3OQh-aXsG1DkWashKC-BATikjG2LFqpwsR07pXz4';
 // aba da planilha com todas as informações
 const SPREADSHEET_TAB = 'engenharia_de_software';
-// TODO constantes indentificando cada coluna da planilha
+// constantes com as possíveis situações do aluno
+const FAILED_ABS = 'Reprovado por Falta';
+const FAILED_GRADE = 'Reprovado por Nota';
+const EXAM = 'Exame Final';
+const APPROVED = 'Aprovado';
+// constantes com o número de aulas e a porcentagem máxima de faltas
+const LECTURE_NR = 60;
+const ABS_PERCENT = 0.25;
 // credenciais retiradas do arquivo credentials.json gerado pelo quickstart
 const CREDENTIALS = {
     "installed":{
@@ -84,99 +91,120 @@ function getNewToken(oAuth2Client, callback) {
   });
 }
 
-// TODO separar as chamadas em funções especificas
 /**
- * Função principal, utilizada como callback da autorização. É nela que todo o processamento
+ * Função principal, utilizada como callback da autorização. É nela em que são feitas as chamadas de processamento
  * dos dados da planilha é feito.
  * 
  * @param {google.auth.OAuth2} auth The authenticated Google OAuth client.
  */
 async function main(auth) {
-    const sheets = google.sheets({version: 'v4', auth});
-    let response = [];
-    let nrAulas = 60; // valor padrão
-    let maxFaltas = nrAulas * 0.25; // valor padrão
+  let response = [];
+  // calculando o número máximo de faltas
+  let maxAbs = await abscence(auth);
 
-    // calcular o número máximo de faltas na planilha
-    try {
-      let res = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${SPREADSHEET_TAB}!A2`,
-      })
+  console.log(`Número máximo de faltas: ${maxAbs}`);
 
-      response = res.data.values;
+  response = await students(auth, maxAbs);
 
-      if (response.length) {
-        // calculando o número máximo de faltas a partir da segunda linha da planilha assumindo que o formato
-        // dela sempre será: "Total de aulas no semestre: 60"
-        if (!isNaN(+(response[0][0].split(': ')[1]))) { // fazendo o split da string pra pegar o número de aulas depois do ":"
-          nrAulas = +(response[0][0].split(': ')[1]);
-          maxFaltas = +nrAulas * 0.25;
-        }
-      }
-    } catch (err) {
-      console.log('The API returned an error: ' + err);
-      return;
-    }
-
-    // recuperando os alunos, faltas e notas da planilha
-    try {
-      let res = await sheets.spreadsheets.values.get({
-          spreadsheetId: SPREADSHEET_ID,
-          range:  `${SPREADSHEET_TAB}!A4:H`
-      });
-
-      if (res.data.values && res.data.values.length >= 0) {
-        response = res.data.values.map(evalRow, { maxFaltas: maxFaltas }); // TODO: fazer bind do número máximo de faltas
-      } else {
-        console.log ('No student data found.');
-        return;
-      }
-    } catch(err) {
-      console.log('The API returned an error: ' + err);
-      return ;
-    }
-
-    // atualizando a planilha com as informações calculadas
-    try {
-      let res = await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${SPREADSHEET_TAB}!G4:H`,
-        valueInputOption: "USER_ENTERED",
-        resource: {
-            values: response
-        }
-      })
-
-      if (res.data) {
-        console.log(`${res.data.updatedRows} rows were updated.`);
-      }
-    } catch (err) {
-      console.log('The API returned an error: ' + err);
-      return;
-    }
-
-  /* exemplo de leitura da planilha
-  sheets.spreadsheets.values.get({
-    spreadsheetId: '1_doGr26mw141Ay-U5MQZSZbqH7mmHPrrxa1eiq9eZLU',
-    range: 'engenharia_de_software!A3:H27',
-  }, (err, res) => {
-    if (err) return console.log('The API returned an error: ' + err);
-    const rows = res.data.values;
-    if (rows.length) {
-      console.log('Matricula, Aluno e teste:');
-      // Print columns A and E, which correspond to indices 0 and 4.
-      rows.map((row) => {
-        console.log(`${row[0]}, ${row[1]} e ${row[7]}`);
-      });
-    } else {
-      console.log('No data found.');
-    }
-  });
-  */
+  if (response && response.length) {
+    updateStudents(auth, response);
+  }
 }
 
-// TODO validações em p1, p2, p3 e abs para garantir que as variáveis sejam números
+/**
+ * Calcula o número máximo de faltas com base no número de aulas dadas no semetre.
+ * 
+ * @param {google.auth.OAuth2} auth The authenticated Google OAuth client.
+ */
+async function abscence(auth) {
+  const sheets = google.sheets({version: 'v4', auth});
+
+  let maxAbs = Math.ceil(LECTURE_NR * ABS_PERCENT); // valor padrão
+
+  try {
+    let res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SPREADSHEET_TAB}!A2`,
+    })
+
+    response = res.data.values;
+
+    if (response.length) {
+      // calculando o número máximo de faltas a partir da segunda linha da planilha assumindo que o formato
+      // dela sempre será: "Total de aulas no semestre: 60"
+      if (!isNaN(+(response[0][0].split(': ')[1]))) { // fazendo o split da string pra pegar o número de aulas depois do ":"
+        lectureNumber = +(response[0][0].split(': ')[1]);
+        maxAbs = Math.ceil(+lectureNumber * 0.25);
+      }
+    }
+
+    return maxAbs;
+  } catch (err) {
+    console.log('The API returned an error: ' + err);
+    console.log(`Using default value for nr of lectures (${LECTURE_NR}) and max abscence (${LECTURE_NR * ABS_PERCENT})`);
+    return maxAbs;
+  }
+}
+
+/**
+ * Recupera os alunos e e faz a avaliação das notas e presença.
+ * 
+ * @param {google.auth.OAuth2} auth Cliente autenticado do Google OAuth.
+ * @param {Number} maxAbs Número máximo de faltas.
+ */
+async function students(auth, maxAbs) {
+  const sheets = google.sheets({version: 'v4', auth});
+  let response = [];
+
+  // recuperando os alunos, faltas e notas da planilha
+  try {
+    let res = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range:  `${SPREADSHEET_TAB}!A4:H`
+    });
+
+    if (res.data.values && res.data.values.length >= 0) {
+      response = res.data.values.map(evalRow, { maxAbs: maxAbs });
+    } else {
+      console.log ('No student data found.');
+    }
+
+    return response;
+  } catch(err) {
+    console.log('The API returned an error: ' + err);
+    return;
+  }
+}
+
+/**
+ * Atualiza as informações dos alunos na planilha do Google Sheets.
+ * 
+ * @param {google.auth.OAuth2} auth Cliente autenticado do Google OAuth.
+ * @param {Number} maxAbs Número máximo de faltas.
+ */
+async function updateStudents(auth, response) {
+  const sheets = google.sheets({version: 'v4', auth});
+
+  // atualizando a planilha com as informações calculadas
+  try {
+    let res = await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SPREADSHEET_TAB}!G4:H`,
+      valueInputOption: "USER_ENTERED",
+      resource: {
+          values: response
+      }
+    })
+
+    if (res.data) {
+      console.log(`${res.data.updatedRows} rows were updated.`);
+    }
+  } catch (err) {
+    console.log('The API returned an error: ' + err);
+    return;
+  }
+}
+
 /*
 * Calcula a média e define a situação dos alunos utilizando as faltas
 * e o número máximo de faltas permitido. Retorna a linha formatada para ser
@@ -185,31 +213,47 @@ async function main(auth) {
 * @param {Object} row linha da planilha
 */
 function evalRow(row) {
-    let p1 = +row[3];
-    let p2 = +row[4];
-    let p3 = +row[5];
-    let abs = +row[2];
-    let avg = Math.round((p1 +p2 + p3) / 3);
+  let p1 = +row[3];
+  let p2 = +row[4];
+  let p3 = +row[5];
+  let abs = +row[2];
+  
+  if (isNaN(p1)) {
+    p1 = 0;
+  }
+  
+  if (isNaN(p2)) {
+    p2 = 0;
+  }
+  
+  if (isNaN(p3)) {
+    p3 = 0;
+  }
 
-    console.log (`Aluno, Média, Faltas: ${row[1]}, ${avg}, ${abs}`);
+  if (isNaN(abs)) {
+    abs = this.maxAbs;
+  }
+  
+  let avg = Math.ceil((p1 +p2 + p3) / 3); // arredondando para o próximo inteiro
 
-    // abs = faltas, caso abs seja maior que o número de faltas permitidas, o aluno é reprovado por faltas
-    if (abs > this.maxFaltas) { 
-      return ["Reprovado por Falta", 0];
-    } else {
-      // média menor que 50 (5.0) = reprovado por nota
-      if (avg < 50) {
-          return ["Reprovado por Nota", 0];
-      // média entre 50 (5.0) e 69 (6.9) = Exame final
-      } else if (avg >= 50 && avg < 70) {
-          // pelo que entendi da explicação a naf precisa ser o complemento da média
-          // para atingir 100. (100 - avg <= naf)
-          let naf = Math.round(100 - avg);
+  // somente para verificação
+  console.log (`Aluno, Média, Faltas: ${row[1]}, ${avg}, ${abs}`);
 
-          return ["Exame Final", naf];
-      // média maior que 70 (7.0) = Aprovado
-      } else if (avg >= 70) {
-          return ["Aprovado", 0]
-      }
+  // abs = faltas, caso abs seja maior que o número de faltas permitidas, o aluno é reprovado por faltas
+  if (abs > this.maxAbs) { 
+    return [FAILED_ABS, 0];
+  } else {
+    // média menor que 50 (5.0) = reprovado por nota
+    if (avg < 50) {
+      return [FAILED_GRADE, 0];
+    // média entre 50 (5.0) e 69 (6.9) = Exame final
+    } else if (avg >= 50 && avg < 70) {
+      let naf = Math.ceil(100 - avg);
+
+      return [EXAM, naf];
+    // média maior que 70 (7.0) = Aprovado
+    } else if (avg >= 70) {
+      return [APPROVED, 0]
     }
+  }
 }
