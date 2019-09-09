@@ -11,4 +11,4 @@ As funções de conexão e autorização foram retiradas do [Quickstart](https:/
 
 ## Dúvidas
 * Tenho dúvidas sobre o cálculo da nota final de aprovação, entendi ele como: a média entre a nota final de aprovação e a média final deve ser **maior ou igual** a 50. Está correto? - **Sim, está correto.**
-* As instruções dizem "Arredondar o resultado para o próximo número inteiro caso necessário", ou seja, se o resultado for igual a 1.4, o arredondamento seria para 2, correto?
+* As instruções dizem "Arredondar o resultado para o próximo número inteiro caso necessário", ou seja, se o resultado for igual a 1.4, o arredondamento seria para 2, correto? **Arredondamento padrão**

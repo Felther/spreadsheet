@@ -13,7 +13,7 @@ const TOKEN_PATH = 'token.json';
 // id da planilha.
 // planilha de teste no meu drive: '1_doGr26mw141Ay-U5MQZSZbqH7mmHPrrxa1eiq9eZLU'
 // planilha passada pela Tunts no email: '158S3OQh-aXsG1DkWashKC-BATikjG2LFqpwsR07pXz4'
-const SPREADSHEET_ID = '158S3OQh-aXsG1DkWashKC-BATikjG2LFqpwsR07pXz4';
+const SPREADSHEET_ID = '1_doGr26mw141Ay-U5MQZSZbqH7mmHPrrxa1eiq9eZLU';
 // aba da planilha com todas as informações
 const SPREADSHEET_TAB = 'engenharia_de_software';
 // constantes com as possíveis situações do aluno
@@ -119,7 +119,7 @@ async function main(auth) {
 async function abscence(auth) {
   const sheets = google.sheets({version: 'v4', auth});
 
-  let maxAbs = Math.ceil(LECTURE_NR * ABS_PERCENT); // valor padrão
+  let maxAbs = Math.round(LECTURE_NR * ABS_PERCENT); // valor padrão
 
   try {
     let res = await sheets.spreadsheets.values.get({
@@ -134,7 +134,7 @@ async function abscence(auth) {
       // dela sempre será: "Total de aulas no semestre: 60"
       if (!isNaN(+(response[0][0].split(': ')[1]))) { // fazendo o split da string pra pegar o número de aulas depois do ":"
         lectureNumber = +(response[0][0].split(': ')[1]);
-        maxAbs = Math.ceil(+lectureNumber * 0.25);
+        maxAbs = Math.round(+lectureNumber * 0.25);
       }
     }
 
@@ -234,7 +234,7 @@ function evalRow(row) {
     abs = this.maxAbs;
   }
   
-  let avg = Math.ceil((p1 +p2 + p3) / 3); // arredondando para o próximo inteiro
+  let avg = Math.round((p1 +p2 + p3) / 3); // arredondando para o próximo inteiro mais próximo
 
   // somente para verificação
   console.log (`Aluno, Média, Faltas: ${row[1]}, ${avg}, ${abs}`);
@@ -248,7 +248,7 @@ function evalRow(row) {
       return [FAILED_GRADE, 0];
     // média entre 50 (5.0) e 69 (6.9) = Exame final
     } else if (avg >= 50 && avg < 70) {
-      let naf = Math.ceil(100 - avg);
+      let naf = Math.round(100 - avg);
 
       return [EXAM, naf];
     // média maior que 70 (7.0) = Aprovado
